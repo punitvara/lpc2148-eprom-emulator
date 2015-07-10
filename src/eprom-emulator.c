@@ -1,59 +1,55 @@
 /*
-lpc2148-eprom-reader
+  lpc2148-eprom-emulator
 
-An 27-series EPROM reader/dumper based on a LPC2148 board.
+  An 27-series EPROM emulator based on a LPC2148 board.
 
-Based on LPCUSB code for USB boilerplate communication.
+  Based on LPCUSB code for USB boilerplate communication.
   
-Copyright (C) 2015 Cecill Etheredge / ijsf (c@ijsf.nl)
-Copyright (C) 2006 Bertrik Sikken (bertrik@sikken.nl)
+  Copyright (C) 2015 Cecill Etheredge / ijsf (c@ijsf.nl)
+  Copyright (C) 2006 Bertrik Sikken (bertrik@sikken.nl)
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
 
-1. Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
-3. The name of the author may not be used to endorse or promote products
-derived from this software without specific prior written permission.
+  1. Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+  3. The name of the author may not be used to endorse or promote products
+  derived from this software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, 
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+  OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, 
+  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+  NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 /*
-Minimal implementation of a USB serial port, using the CDC class.
-This example application simply echoes everything it receives right back
-to the host.
+  Minimal implementation of a USB serial port, using the CDC class.
+  This example application simply echoes everything it receives right back
+  to the host.
 
-Windows:
-Extract the usbser.sys file from .cab file in C:\WINDOWS\Driver Cache\i386
-and store it somewhere (C:\temp is a good place) along with the usbser.inf
-file. Then plug in the LPC214x and direct windows to the usbser driver.
-Windows then creates an extra COMx port that you can open in a terminal
-program, like hyperterminal.
+  Windows:
+  Extract the usbser.sys file from .cab file in C:\WINDOWS\Driver Cache\i386
+  and store it somewhere (C:\temp is a good place) along with the usbser.inf
+  file. Then plug in the LPC214x and direct windows to the usbser driver.
+  Windows then creates an extra COMx port that you can open in a terminal
+  program, like hyperterminal.
 
-Linux:
-The device should be recognised automatically by the cdc_acm driver,
-which creates a /dev/ttyACMx device file that acts just like a regular
-serial port.
-
+  Linux:
+  The device should be recognised automatically by the cdc_acm driver,
+  which creates a /dev/ttyACMx device file that acts just like a regular
+  serial port.
 */
 
-// EPROM type selector
-#define EPROM_27256
-//#define EPROM_27128
-
+#include "eprom.h"
 
 #include <string.h>			// memcpy
 
@@ -86,13 +82,6 @@ serial port.
 #define	SET_LINE_CODING			0x20
 #define	GET_LINE_CODING			0x21
 #define	SET_CONTROL_LINE_STATE	0x22
-
-// interrupts
-#define VICIntSelect   *((volatile unsigned int *) 0xFFFFF00C)
-#define VICIntEnable   *((volatile unsigned int *) 0xFFFFF010)
-#define VICVectAddr    *((volatile unsigned int *) 0xFFFFF030)
-#define VICVectAddr0   *((volatile unsigned int *) 0xFFFFF100)
-#define VICVectCntl0   *((volatile unsigned int *) 0xFFFFF200)
 
 #define	INT_VECT_NUM	0
 
@@ -306,19 +295,12 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
 
     // set line coding
     case SET_LINE_CODING:
-    DBG("SET_LINE_CODING\n");
     memcpy((U8 *)&LineCoding, *ppbData, 7);
     *piLen = 7;
-    DBG("dwDTERate=%u, bCharFormat=%u, bParityType=%u, bDataBits=%u\n",
-    LineCoding.dwDTERate,
-    LineCoding.bCharFormat,
-    LineCoding.bParityType,
-    LineCoding.bDataBits);
     break;
 
     // get line coding
     case GET_LINE_CODING:
-    DBG("GET_LINE_CODING\n");
     *ppbData = (U8 *)&LineCoding;
     *piLen = 7;
     break;
@@ -326,7 +308,6 @@ static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
     // set control line state
     case SET_CONTROL_LINE_STATE:
     // bit0 = DTR, bit = RTS
-    DBG("SET_CONTROL_LINE_STATE %X\n", pSetup->wValue);
     break;
 
     default:
@@ -379,6 +360,29 @@ int VCOM_getchar(void)
 }
 
 
+/*
+  Below console functions simply redirect all console traffic to USB serial console
+*/
+int putchar(int ch)
+{
+  return VCOM_putchar(ch);
+}
+
+int getchar()
+{
+  return VCOM_getchar();
+}
+
+int puts(const char *s)
+{
+	while (*s) {
+		putchar(*s++);
+	}
+	putchar('\n');
+	return 1;
+}
+
+
 /**
 Interrupt handler
 	
@@ -400,88 +404,77 @@ static void USBFrameHandler(U16 wFrame)
 }
 
 
-static inline void eprom_oe_lo()
+static inline BOOL eprom_oe_rd()
 {
-  // enables output
-  FIO0CLR |= 0b100000000000000000;
+  return (FIO0PIN & 0b100000000000000000) > 0;
 }
-static inline void eprom_ce_lo()
+static inline BOOL eprom_ce_rd()
 {
-  // enables chip
-  FIO0CLR |= 0b010000000000000000;
+  return (FIO0PIN & 0b010000000000000000) > 0;
 }
-static inline void eprom_oe_hi()
+static inline U16 eprom_address_rd()
 {
-  // disables output
-  FIO0SET |= 0b100000000000000000;
+  // read address from P0.0 and P0.15, excluding P0.14
+  U16 data = (FIO0PIN & 0b1011111111111111);
+  return ((data & 0b1000000000000000) >> 1) | (data & 0b0011111111111111);
 }
-static inline void eprom_ce_hi()
+static inline void eprom_data_wr(U8 data)
 {
-  // disables chip
-  FIO0SET |= 0b010000000000000000;
-}
-static inline void eprom_address_wr(U16 addr)
-{
-  // write address to P0.0 and P0.15, excluding P0.14
+  // write data to P1.16 to P1.23
   // mask off these pins to avoid overriding other values
-  FIO0MASK = ~(0b1011111111111111);
-  FIO0PIN  = ((addr & 0b100000000000000) << 1)
-            | (addr & 0b011111111111111);
-
+  FIO1MASK = ~(0b111111110000000000000000);
+  FIO1PIN = data << 16;
+  
   // reset mask
-  FIO0MASK = 0;
-}
-static inline U8 eprom_data_rd()
-{
-  // read current values from P1.16 to P1.23
-  U32 t = FIO1PIN;
-  return (t >> 16);
+  FIO1MASK = 0;
 }
 
-static void eprom_wait()
+static void eprom_wait_request_start()
 {
-  // waits for the read time using TIMER0
-  
-  // reset and enable TIMER0
-  T0TCR = 0x02;
-  T0TCR = 0x01;
-  
-  // wait for TIMER0
-  while(T0TC == 0);
-  
-  // disable TIMER0
-  T0TCR = 0x00;
+  // busy wait for CE and OE to be pulled low
+  while(!(!eprom_oe_rd() && !eprom_ce_rd()));
 }
 
-static U8 eprom_read(U16 address)
+static void eprom_wait_request_end()
 {
-  U8 data = 0;
+  // busy wait for CE and OE to be pulled high
+  while(!(eprom_oe_rd() && eprom_ce_rd()));
+}
+
+static void eprom_emulate()
+{
+  // emulates an EPROM and prints any debugging information to the USB serial console
   
-  // set address line
-  eprom_address_wr(address);
+  printf("Starting EPROM emulation (%s series)", sizeof(eprom_bin) == 32768 ? "27256" : (sizeof(eprom_bin) == 16384 ? "27128" : "Unknown") );
   
-  // pull CE and OE down (in that particular order) to signal valid address and start our request
-  eprom_ce_lo();
-  eprom_oe_lo();
-  
-  // wait for the read time
-  eprom_wait();
-  
-  // data should be ready, so read it out
-  data = eprom_data_rd();
-  
-  // pull CE and OE up to signal invalid address and end our request
-  eprom_ce_hi();
-  eprom_oe_hi();
-  
-  return data;
+  // main loop
+  while(1)
+  {
+    eprom_wait_request_start();
+    
+    // address lines should be valid, so read out address
+    U16 address = eprom_address_rd();
+    
+    // perform bounds check
+    if(address < sizeof(eprom_bin))
+    {
+      // set up data lines with the appropriate data
+      printf("Requested address 0x%x\n", address);
+      eprom_data_wr(eprom_bin[address]);
+    }
+    else
+    {
+      // invalid address
+      printf("Requested address 0x%x is out of bounds (firmware size: 0x%x)\n", address, sizeof(eprom_bin));
+    }
+
+    // wait for CE and OE to be pulled high
+    eprom_wait_request_end();
+  };
 }
 
 static void eprom_initialize()
 {
-  // eeprom read time in MHz, ensure this is an divisable integer of 60 (PCLK)
-#define EPROM_READ_TIME 5
-  
   // enable fast GPIO on ports 0 and 1
   SCS |= 0x00000003;
   
@@ -492,29 +485,17 @@ static void eprom_initialize()
   // mask all pins as writable
   FIO0MASK = 0;
   
-  // set P0.0 to P0.15 (corresponding to A0 to A15 on EPROM) as outputs
+  // set P0.0 to P0.15 (corresponding to A0 to A15 on EPROM) as inputs
   // this excludes P0.14, which is used as an ISR pin by the LPC2148
+  FIO0DIR &= ~(0b1011111111111111);
+  
+  // set P0.16 and P0.17 (corresponding to CE and OE) as inputs
+  FIO0DIR &= ~(0b110000000000000000);
+  
+  // set P1.16 to P1.23 (corresponding to Q0 to Q7 on EPROM) as outputs
   // initialize to LOW
-  FIO0DIR |= 0b1011111111111111;
-  FIO0CLR |= 0b1011111111111111;
-  
-  // set P0.16 and P0.17 (corresponding to CE and OE) as outputs
-  // initialize to HIGH
-  FIO0DIR |= 0b110000000000000000;
-  FIO0SET |= 0b110000000000000000;
-  
-  // set P1.16 to P1.23 (corresponding to Q0 to Q7 on EPROM) as inputs
-  FIO1DIR = 0;
-
-  // set up TIMER0 to count on PCLK, which by now is set to 60 MHz
-  T0CTCR = 0x00;
-  
-  // set the prescaler to the appropriate value
-  // e.g. our EPROM runs at 200 ns or 5 MHz, the prescaler (divider) is set to 12
-  T0PR = (60 / EPROM_READ_TIME) - 1;
-  
-  // reset TIMER0
-  T0TCR = 0x02;
+  FIO1DIR |= 0b111111110000000000000000;
+  FIO1CLR |= 0b111111110000000000000000;
 }
 
 /*************************************************************************
@@ -528,11 +509,6 @@ int main(void)
   // initialize PLL and MAM
   // this assumes (and requires) a 12MHz clock on the board, and sets the board to run at 60 MHz
   Initialize();
-
-  // init DBG
-  //ConsoleInit(60000000 / (16 * BAUD_RATE));
-
-  DBG("Initialising USB stack\n");
 
   // initialise stack
   USBInit();
@@ -557,8 +533,6 @@ int main(void)
   // initialise VCOM
   VCOM_init();
 
-  DBG("Starting USB communication\n");
-
   // set up USB interrupt
   VICIntSelect &= ~(1<<22);               // select IRQ for USB
   VICIntEnable |= (1<<22);
@@ -575,47 +549,8 @@ int main(void)
   // initialize eprom reader settings
   eprom_initialize();
   
-  // wait for USB serial console start character 'c'
-  do {
-    c = VCOM_getchar();
-  } while(c != 'c');
-
-  // output leader sequence on USB serial console for our convenience
-  VCOM_putchar('i');
-  VCOM_putchar('j');
-  VCOM_putchar('s');
-  VCOM_putchar('f');
-
-  // read out eprom
-#if defined(EPROM_27256)
-  U16 eprom_size = 32768; // 256 Kbit
-#elif defined(EPROM_27128)
-  U16 eprom_size = 16384; // 128 Kbit
-#else
-#error "EPROM not supported"
-#endif
-  
-  U16 i;
-  for(i = 0; i < eprom_size; ++i)
-  {
-#if defined(EPROM_27256)
-    // 27256 series just takes 15 address lines
-    U16 addr = i;
-#elif defined(EPROM_27128)
-    // 27128 series takes 14 address lines and uses the A14 line as a PGM (program, keep high) signal
-    U16 addr = (1<<14) | i;
-#endif
-    U8 data = eprom_read(addr);
-    while( VCOM_putchar(data) == EOF ); // retry until data is written to fifo
-  }
-
-  // output trailer sequence on USB serial console for our convenience
-  VCOM_putchar('i');
-  VCOM_putchar('j');
-  VCOM_putchar('s');
-  VCOM_putchar('f');
-  
-  while(1);
+  // eprom emulation loop
+  eprom_emulate();
 
   return 0;
 }

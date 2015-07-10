@@ -17,14 +17,20 @@ LFLAGS  =  -nostartfiles
 CPFLAGS = -O ihex
 ODFLAGS	= -x --syms
 
+EPROMFILE = firmware.bin
 LINKFILE	= lpc2148-rom.ld
 
-CSRCS	= startup.c printf.c console.c
+CSRCS	= startup.c printf.c
 OBJS 	= crt.o $(CSRCS:.c=.o)
 
 all: depend eprom-emulator
 
-eprom-emulator: $(OBJS) eprom-emulator.o serial_fifo.o armVIC.o $(LIBNAME).a
+eprom.h: .FORCE
+	@ echo "Building EPROM header eprom.h from $(EPROMFILE)..."
+	@ python -c 'import os, sys; s=os.path.getsize("$(EPROMFILE)"); print "Firmware size: %u" % s; sys.exit(not (s == 16384 or s == 32768))'
+	@ python -c 'import textwrap; s=open("$(EPROMFILE)", "rb").read().encode("hex").upper(); t="".join(["\\x"+x+y for (x,y) in zip(s[0::2], s[1::2])]) ; print "static const char eprom_bin[] = \\\n\t\"%s\";"%"\" \\\n\t\"".join(textwrap.wrap(t,80))' > eprom.h
+	
+eprom-emulator: $(OBJS) eprom.h eprom-emulator.o serial_fifo.o armVIC.o $(LIBNAME).a
 	@ echo "Building $@..."
 	$(CC) -T $(LINKFILE) $(LFLAGS) $^ -o $@.elf -Wl,-Map,$@.map
 	$(CP) $(CPFLAGS) $@.elf $@.hex
@@ -35,7 +41,7 @@ crt.o: crt.s
 	$(CC) -c $(AFLAGS) -Wa,-ahlms=crt.lst crt.s -o crt.o
 
 clean:
-	rm -f *.hex *.elf *.o *.lst *.dmp *.map .depend
+	rm -f eprom.h *.hex *.elf *.o *.lst *.dmp *.map .depend
 
 # recompile if the Makefile changes
 $(OBJS): Makefile
@@ -45,7 +51,8 @@ depend: $(CSRCS)
 	$(CC) $(CFLAGS) -MM $^ > .depend || rm -f .depend
 
 # phony targets
-.PHONY: clean
+.FORCE:
+.PHONY: .FORCE clean
 
 -include .depend
 
