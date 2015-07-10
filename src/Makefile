@@ -1,5 +1,5 @@
 LIBNAME	= ../libusb/usbstack
-APPNAME = eprom-reader
+APPNAME = eprom-emulator
 
 # Tool definitions
 CC      = arm-none-eabi-gcc
@@ -22,9 +22,9 @@ LINKFILE	= lpc2148-rom.ld
 CSRCS	= startup.c printf.c console.c
 OBJS 	= crt.o $(CSRCS:.c=.o)
 
-all: depend eprom-reader
+all: depend eprom-emulator
 
-eprom-reader: $(OBJS) eprom-reader.o serial_fifo.o armVIC.o $(LIBNAME).a
+eprom-emulator: $(OBJS) eprom-emulator.o serial_fifo.o armVIC.o $(LIBNAME).a
 	@ echo "Building $@..."
 	$(CC) -T $(LINKFILE) $(LFLAGS) $^ -o $@.elf -Wl,-Map,$@.map
 	$(CP) $(CPFLAGS) $@.elf $@.hex
